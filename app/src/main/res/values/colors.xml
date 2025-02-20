@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="primary">#1976D2</color>          <!-- Koyu mavi -->
+    <color name="primary_dark">#1565C0</color>     <!-- Daha koyu mavi -->
+    <color name="accent">#2196F3</color>           <!-- Orta mavi -->
+    
+    <color name="background">#F5F5F7</color>       <!-- Çok açık gri-mavi -->
+    <color name="surface">#FFFFFF</color>          <!-- Beyaz -->
+    <color name="white">#FFFFFF</color>            <!-- Beyaz - Android sistemi için gerekli -->
+    <color name="black">#000000</color>            <!-- Siyah - Android sistemi için gerekli -->
+    <color name="text_primary">#2C2C2C</color>     <!-- Koyu gri -->
+    <color name="text_secondary">#757575</color>   <!-- Orta gri -->
+
+    <!-- Kategori renk seçenekleri - Mavi arka planda belirgin renkler -->
+    <color name="category_yellow">#FFD600</color>      <!-- Parlak sarı -->
+    <color name="category_orange">#FF9100</color>      <!-- Canlı turuncu -->
+    <color name="category_red">#FF1744</color>         <!-- Parlak kırmızı -->
+    <color name="category_pink">#F50057</color>        <!-- Neon pembe -->
+    <color name="category_purple">#D500F9</color>      <!-- Parlak mor -->
+    <color name="category_deep_purple">#651FFF</color> <!-- Koyu mor -->
+    <color name="category_light_green">#76FF03</color> <!-- Neon yeşil -->
+    <color name="category_green">#00E676</color>       <!-- Parlak yeşil -->
+    <color name="category_teal">#1DE9B6</color>        <!-- Turkuaz -->
+    <color name="category_amber">#FFAB00</color>       <!-- Kehribar -->
+</resources>
