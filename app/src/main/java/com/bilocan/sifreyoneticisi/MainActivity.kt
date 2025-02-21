@@ -43,6 +43,7 @@ import com.google.gson.GsonBuilder
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.button.MaterialButton
 import android.net.Uri
+import com.bilocan.sifreyoneticisi.model.AppPassword
 import java.io.File
 import com.google.android.material.textfield.TextInputLayout
 
@@ -54,7 +55,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private lateinit var categoryAdapter: CategoryAdapter
     private lateinit var db: AppDatabase
-    private var userId: Int = 0
     private val categories = mutableListOf<Category>()
     private var isFinishing = false
     private lateinit var backupManager: BackupManager
@@ -66,8 +66,7 @@ class MainActivity : AppCompatActivity() {
     ) { permissions ->
         if (permissions.all { it.value }) {
             showMessage("İzinler verildi")
-            // İzinler verildikten sonra beklemeden dosya seçiciyi aç
-            createBackupLauncher.launch("sifreyoneticisi_yedek.json")
+            showBackupPasswordDialog()
         } else {
             showMessage("Yedekleme için gerekli izinler verilmedi")
         }
@@ -76,80 +75,89 @@ class MainActivity : AppCompatActivity() {
     private val createBackupLauncher = registerForActivityResult(
         ActivityResultContracts.CreateDocument("application/json")
     ) { uri ->
-        uri?.let {
-            lifecycleScope.launch {
-                try {
-                    backupManager.createBackup(it, userId)
-                    showMessage("Yedekleme başarıyla tamamlandı")
-                } catch (e: BackupException) {
-                    showMessage(e.message ?: "Yedekleme sırasında bir hata oluştu")
-                }
-            }
-        }
+        uri?.let { handleBackupCreation(it) }
     }
 
     private val restoreBackupLauncher = registerForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
-        uri?.let {
-            lifecycleScope.launch {
-                try {
-                    // Önce dosyanın geçerli bir yedek dosyası olup olmadığını kontrol et
-                    val jsonData = this@MainActivity.contentResolver.openInputStream(it)?.use { inputStream ->
-                        String(inputStream.readBytes())
-                    } ?: throw BackupException("Yedek dosyası açılamadı")
+        uri?.let { showRestorePasswordDialog(it) }
+    }
 
-                    // JSON formatını kontrol et
-                    val backupData = try {
-                        gson.fromJson(jsonData, BackupData::class.java)
-                    } catch (e: Exception) {
-                        throw BackupException("Geçersiz yedek dosyası seçildi")
-                    }
+    private fun showBackupPasswordDialog() {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_backup_password, null)
+        val passwordEditText = dialogView.findViewById<TextInputEditText>(R.id.passwordEditText)
+        val confirmPasswordEditText = dialogView.findViewById<TextInputEditText>(R.id.confirmPasswordEditText)
 
-                    // Yedekteki kullanıcı adını kontrol et
-                    val backupUser = backupData.users.firstOrNull()
-                        ?: throw BackupException("Yedek dosyasında kullanıcı bilgisi bulunamadı")
+        AlertDialog.Builder(this, R.style.CustomAlertDialog)
+            .setTitle("Yedek Şifresi Oluştur")
+            .setView(dialogView)
+            .setPositiveButton("Devam Et") { dialog, _ ->
+                val password = passwordEditText.text.toString()
+                val confirmPassword = confirmPasswordEditText.text.toString()
 
-                    val currentUser = db.userDao().getUserById(userId)
-                        ?: throw BackupException("Kullanıcı bilgisi alınamadı")
-
-                    // Yedekteki kullanıcı adı ile mevcut kullanıcı adı aynı mı kontrol et
-                    if (backupUser.username == currentUser.username) {
-                        // Kullanıcı adları aynıysa geri yükleme onayı iste
-                        showRestoreConfirmationDialog(it)
-                    } else {
-                        // Kullanıcı adları farklıysa erişim reddet
-                        throw BackupException("Bu yedek dosyası başka bir kullanıcıya ait")
-                    }
-                } catch (e: BackupException) {
-                    showMessage(e.message ?: "Yedekten yükleme sırasında bir hata oluştu")
-                } catch (e: Exception) {
-                    showMessage("Geçersiz yedek dosyası seçildi")
+                if (password.isEmpty()) {
+                    showMessage("Lütfen bir şifre belirleyin")
+                    return@setPositiveButton
                 }
+
+                if (password != confirmPassword) {
+                    showMessage("Şifreler eşleşmiyor")
+                    return@setPositiveButton
+                }
+
+                dialog.dismiss()
+                createBackupLauncher.launch("sifreyoneticisi_yedek.json")
+                backupManager.setBackupPassword(password)
+            }
+            .setNegativeButton("İptal", null)
+            .show()
+    }
+
+    private fun showRestorePasswordDialog(uri: Uri) {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_restore_password, null)
+        val passwordEditText = dialogView.findViewById<TextInputEditText>(R.id.passwordEditText)
+
+        AlertDialog.Builder(this, R.style.CustomAlertDialog)
+            .setTitle("Yedek Şifresini Girin")
+            .setView(dialogView)
+            .setPositiveButton("Devam Et") { dialog, _ ->
+                val password = passwordEditText.text.toString()
+
+                if (password.isEmpty()) {
+                    showMessage("Lütfen yedeğin şifresini girin")
+                    return@setPositiveButton
+                }
+
+                dialog.dismiss()
+                handleRestoreBackup(uri, password)
+            }
+            .setNegativeButton("İptal", null)
+            .show()
+    }
+
+    private fun handleBackupCreation(uri: Uri) {
+        lifecycleScope.launch {
+            try {
+                backupManager.createBackup(uri)
+                showMessage("Yedekleme başarıyla tamamlandı")
+            } catch (e: BackupException) {
+                showMessage(e.message ?: "Yedekleme sırasında bir hata oluştu")
             }
         }
     }
 
-    private fun showRestoreConfirmationDialog(uri: Uri) {
-        AlertDialog.Builder(this@MainActivity, R.style.CustomAlertDialog)
-            .setTitle("Yedekten Yükleme")
-            .setMessage("Bu işlem mevcut verilerin üzerine yazacak. Devam etmek istiyor musunuz?")
-            .setPositiveButton("Evet") { _, _ ->
-                lifecycleScope.launch {
-                    try {
-                        backupManager.restoreBackup(uri, userId)
-                        showMessage("Yedekten yükleme başarıyla tamamlandı")
-                        isFinishing = true
-                        val intent = intent
-                        finish()
-                        startActivity(intent)
-                    } catch (e: BackupException) {
-                        showMessage(e.message ?: "Yedekten yükleme sırasında bir hata oluştu")
-                    }
-                }
+    private fun handleRestoreBackup(uri: Uri, password: String) {
+        lifecycleScope.launch {
+            try {
+                backupManager.setBackupPassword(password)
+                backupManager.restoreBackup(uri)
+                showMessage("Yedekten yükleme başarıyla tamamlandı")
+                recreate()
+            } catch (e: BackupException) {
+                showMessage(e.message ?: "Yedekten yükleme sırasında bir hata oluştu")
             }
-            .setNegativeButton("İptal", null)
-            .show()
+        }
     }
 
     private val iconOptions = listOf(
@@ -173,15 +181,6 @@ class MainActivity : AppCompatActivity() {
         try {
             binding = ActivityMainBinding.inflate(layoutInflater)
             setContentView(binding.root)
-
-            userId = intent.getIntExtra(EXTRA_USER_ID, 0)
-            if (userId == 0) {
-                Log.e(TAG, "Geçersiz user_id: $userId")
-                showMessage("Geçersiz kullanıcı bilgisi")
-                finish()
-                return
-            }
-
             initializeComponents()
         } catch (e: Exception) {
             Log.e(TAG, "MainActivity başlatılırken hata", e)
@@ -191,37 +190,23 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun initializeComponents() {
-        // Toolbar'ı ayarla
         setSupportActionBar(binding.toolbar)
         supportActionBar?.setDisplayShowTitleEnabled(false)
-
-        // Toolbar butonlarının tıklama işleyicilerini ayarla
-        binding.settingsButton.setOnClickListener {
-            showSettingsDialog()
-        }
         
-        binding.logoutButton.setOnClickListener {
-            showLogoutDialog()
-        }
-
-        Log.d(TAG, "MainActivity başlatılıyor. User ID: $userId")
-        
-        // Veritabanı bağlantısını yeniden oluştur
-        AppDatabase.clearInstance() // Önceki instance'ı temizle
         db = AppDatabase.getDatabase(this)
-        
         backupManager = BackupManager(this)
         setupRecyclerView()
         setupClickListeners()
         observeCategories()
     }
 
+
     private fun observeCategories() {
         if (isFinishing) return
         
         lifecycleScope.launch {
             try {
-                db.categoryDao().getCategoriesForUser(userId).collectLatest { categoryList ->
+                db.categoryDao().getAllCategories().collectLatest { categoryList ->
                     if (!isFinishing) {
                         updateCategories(categoryList)
                     }
@@ -427,7 +412,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun checkPermissionsAndBackup() {
         if (checkAndRequestPermissions()) {
-            createBackupLauncher.launch("sifreyoneticisi_yedek.json")
+            showBackupPasswordDialog()
         }
     }
 
@@ -457,55 +442,6 @@ class MainActivity : AppCompatActivity() {
             requestPermissionLauncher.launch(notGrantedPermissions.toTypedArray())
             false
         }
-    }
-
-    private fun showLogoutDialog() {
-        AlertDialog.Builder(this, R.style.CustomAlertDialog)
-            .setTitle("Çıkış Yap")
-            .setMessage("Çıkış yapmak istediğinizden emin misiniz?")
-            .setPositiveButton("Çıkış Yap") { _, _ -> handleLogout() }
-            .setNegativeButton("İptal", null)
-            .show()
-    }
-
-    private fun handleLogout() {
-        isFinishing = true
-        lifecycleScope.launch(Dispatchers.IO) {
-            try {
-                // Veritabanı bağlantısını kapat
-                AppDatabase.clearInstance()
-                // Kaydedilmiş kimlik bilgilerini temizle
-                clearSavedCredentials()
-                withContext(Dispatchers.Main) {
-                    // LoginActivity'ye yönlendir
-                    val intent = Intent(this@MainActivity, LoginActivity::class.java).apply {
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                    }
-                    startActivity(intent)
-                    finish()
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Çıkış yapılırken hata", e)
-                withContext(Dispatchers.Main) {
-                    showMessage("Çıkış yapılırken bir hata oluştu")
-                }
-            }
-        }
-    }
-
-    private fun clearSavedCredentials() {
-        getSharedPreferences("login_prefs", MODE_PRIVATE)
-            .edit()
-            .clear()
-            .apply()
-    }
-
-    private fun navigateToLogin() {
-        val intent = Intent(this, LoginActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-        }
-        startActivity(intent)
-        finish()
     }
 
     private fun showDeleteCategoryConfirmation(category: Category) {
@@ -544,7 +480,6 @@ class MainActivity : AppCompatActivity() {
         binding.addCategoryFab.setOnClickListener { showAddCategoryDialog() }
         binding.backupButton.setOnClickListener { checkPermissionsAndBackup() }
         binding.restoreButton.setOnClickListener { checkPermissionsAndRestore() }
-        
         binding.editCategoryButton.setOnClickListener {
             if (selectedCategory == null) {
                 showMessage("Lütfen yukarıdan bir kategori seçiniz")
@@ -552,13 +487,18 @@ class MainActivity : AppCompatActivity() {
                 showEditCategoryDialog(selectedCategory!!)
             }
         }
-        
         binding.deleteCategoryButton.setOnClickListener {
             if (selectedCategory == null) {
                 showMessage("Lütfen yukarıdan bir kategori seçiniz")
             } else {
                 showDeleteCategoryConfirmation(selectedCategory!!)
             }
+        }
+        binding.logoutButton.setOnClickListener {
+            showLogoutConfirmation()
+        }
+        binding.settingsButton.setOnClickListener {
+            showUpdatePasswordDialog()
         }
     }
 
@@ -567,15 +507,12 @@ class MainActivity : AppCompatActivity() {
         var selectedIcon = iconOptions[0]
         var selectedColor = defaultCategoryColor
 
-        // Dialog başlığını ayarla
         dialogBinding.dialogTitle.text = "Yeni Kategori"
         dialogBinding.saveButton.text = "Kaydet"
 
-        // Önce adaptörleri kur
         setupIconSelection(dialogBinding) { selectedIcon = it }
         setupColorSelection(dialogBinding) { selectedColor = it }
 
-        // İlk seçimleri yap
         (dialogBinding.iconRecyclerView.adapter as IconAdapter).setSelectedIcon(0)
         (dialogBinding.colorRecyclerView.adapter as ColorAdapter).setSelectedColor(0)
 
@@ -609,21 +546,20 @@ class MainActivity : AppCompatActivity() {
     private fun addCategory(name: String, icon: Int, color: Int) {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                val nextOrderIndex = db.categoryDao().getNextOrderIndex(userId) ?: 0
+                val nextOrderIndex = db.categoryDao().getNextOrderIndex() ?: 0
                 val newCategory = Category(
-                    userId = userId,
                     name = name,
                     icon = icon,
                     color = color,
                     orderIndex = nextOrderIndex
                 )
                 val categoryId = db.categoryDao().insertCategory(newCategory)
-                Log.d(TAG, "Yeni kategori eklendi. ID: $categoryId, UserID: $userId")
+                Log.d(TAG, "Yeni kategori eklendi. ID: $categoryId")
                 withContext(Dispatchers.Main) {
                     showMessage("$name kategorisi eklendi")
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Kategori eklenirken hata. UserID: $userId", e)
+                Log.e(TAG, "Kategori eklenirken hata", e)
                 withContext(Dispatchers.Main) {
                     showMessage("Kategori eklenirken bir hata oluştu")
                 }
@@ -636,18 +572,14 @@ class MainActivity : AppCompatActivity() {
         var selectedIcon = category.icon
         var selectedColor = category.color
 
-        // Mevcut kategori bilgilerini doldur
         dialogBinding.categoryNameEditText.setText(category.name)
         
-        // Dialog başlığını güncelle
         dialogBinding.dialogTitle.text = "Kategoriyi Düzenle"
         dialogBinding.saveButton.text = "Güncelle"
 
-        // Önce adaptörleri kur
         setupIconSelection(dialogBinding) { selectedIcon = it }
         setupColorSelection(dialogBinding) { selectedColor = it }
 
-        // Mevcut kategori değerlerini seç
         val iconIndex = iconOptions.indexOf(category.icon)
         val colorIndex = colorOptions.indexOf(category.color)
         
@@ -708,62 +640,55 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun showSettingsDialog() {
-        val dialogBinding = layoutInflater.inflate(R.layout.dialog_settings, null)
-        val usernameEditText = dialogBinding.findViewById<TextInputEditText>(R.id.usernameEditText)
-        val passwordEditText = dialogBinding.findViewById<TextInputEditText>(R.id.passwordEditText)
-        val confirmPasswordEditText = dialogBinding.findViewById<TextInputEditText>(R.id.confirmPasswordEditText)
-        val saveButton = dialogBinding.findViewById<MaterialButton>(R.id.saveButton)
-        val cancelButton = dialogBinding.findViewById<MaterialButton>(R.id.cancelButton)
-
-        lifecycleScope.launch {
-            val currentUser = db.userDao().getUserById(userId)
-            currentUser?.let {
-                usernameEditText.setText(it.username)
+    private fun showLogoutConfirmation() {
+        AlertDialog.Builder(this, R.style.CustomAlertDialog)
+            .setTitle("Çıkış Yap")
+            .setMessage("Uygulamayı kapatmak istediğinize emin misiniz?")
+            .setPositiveButton("Çıkış Yap") { _, _ ->
+                finish()
             }
-        }
+            .setNegativeButton("İptal", null)
+            .show()
+    }
 
-        val dialog = AlertDialog.Builder(this)
-            .setView(dialogBinding)
-            .create()
+    private fun showUpdatePasswordDialog() {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_update_password, null)
+        val oldPasswordEditText = dialogView.findViewById<TextInputEditText>(R.id.oldPasswordEditText)
+        val newPasswordEditText = dialogView.findViewById<TextInputEditText>(R.id.newPasswordEditText)
+        val confirmNewPasswordEditText = dialogView.findViewById<TextInputEditText>(R.id.confirmNewPasswordEditText)
 
-        saveButton.setOnClickListener {
-            val newPassword = passwordEditText.text.toString()
-            val confirmPassword = confirmPasswordEditText.text.toString()
+        AlertDialog.Builder(this, R.style.CustomAlertDialog)
+            .setTitle("Şifre Güncelle")
+            .setView(dialogView)
+            .setPositiveButton("Güncelle") { dialog, _ ->
+                val oldPassword = oldPasswordEditText.text.toString()
+                val newPassword = newPasswordEditText.text.toString()
+                val confirmNewPassword = confirmNewPasswordEditText.text.toString()
 
-            when {
-                newPassword.isEmpty() -> {
-                    showMessage("Lütfen yeni şifrenizi giriniz")
+                if (oldPassword.isEmpty() || newPassword.isEmpty() || confirmNewPassword.isEmpty()) {
+                    showMessage("Lütfen tüm alanları doldurun")
+                    return@setPositiveButton
                 }
-                newPassword != confirmPassword -> {
-                    showMessage("Şifreler eşleşmiyor")
+
+                if (newPassword != confirmNewPassword) {
+                    showMessage("Yeni şifreler eşleşmiyor")
+                    return@setPositiveButton
                 }
-                newPassword.length < 6 -> {
-                    showMessage("Şifre en az 6 karakter olmalıdır")
-                }
-                else -> {
-                    lifecycleScope.launch {
-                        try {
-                            val currentUser = db.userDao().getUserById(userId)
-                            if (currentUser != null) {
-                                db.userDao().updateUser(userId, currentUser.username, newPassword)
-                                showMessage("Şifre başarıyla güncellendi")
-                                dialog.dismiss()
-                            }
-                        } catch (e: Exception) {
-                            Log.e(TAG, "Şifre güncellenirken hata", e)
-                            showMessage("Şifre güncellenirken bir hata oluştu")
-                        }
+
+                lifecycleScope.launch {
+                    val appPassword = db.appPasswordDao().getAppPassword()
+                    if (appPassword?.password != oldPassword) {
+                        showMessage("Mevcut şifre yanlış")
+                        return@launch
                     }
+
+                    db.appPasswordDao().setAppPassword(AppPassword(password = newPassword))
+                    showMessage("Şifre başarıyla güncellendi")
+                    dialog.dismiss()
                 }
             }
-        }
-
-        cancelButton.setOnClickListener {
-            dialog.dismiss()
-        }
-
-        dialog.show()
+            .setNegativeButton("İptal", null)
+            .show()
     }
 }
 

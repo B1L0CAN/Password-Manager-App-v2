@@ -10,11 +10,12 @@
 
     <TextView
         android:id="@+id/dialogTitle"
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginBottom="16dp"
         android:text="Kategori Oluştur"
-        android:textColor="@color/text_primary"
+        android:textColor="@color/accent"
+        android:textAlignment="center"
         android:textSize="20sp"
         android:textStyle="bold" />
 
@@ -35,12 +36,13 @@
     </com.google.android.material.textfield.TextInputLayout>
 
     <TextView
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginBottom="8dp"
         android:text="İkon Seç"
-        android:textColor="@color/text_primary"
-        android:textSize="16sp" />
+        android:textAlignment="center"
+        android:textColor="@color/accent"
+        android:textSize="18sp" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/iconRecyclerView"
@@ -52,12 +54,13 @@
         android:overScrollMode="never" />
 
     <TextView
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginBottom="8dp"
         android:text="Renk Seç"
-        android:textColor="@color/text_primary"
-        android:textSize="16sp" />
+        android:textColor="@color/accent"
+        android:textAlignment="center"
+        android:textSize="18sp" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/colorRecyclerView"

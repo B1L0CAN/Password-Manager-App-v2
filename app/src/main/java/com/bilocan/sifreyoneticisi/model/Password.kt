@@ -7,9 +7,9 @@ import androidx.room.PrimaryKey
 data class Password(
     @PrimaryKey(autoGenerate = true)
     val id: Int = 0,
-    val categoryId: Int,
-    val appName: String,
-    val username: String?,
+    val title: String,
+    val username: String,
     val password: String,
-    var orderIndex: Int = 0
+    val categoryId: Int,
+    val orderIndex: Int = 0
 ) 

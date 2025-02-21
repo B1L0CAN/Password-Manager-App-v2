@@ -12,58 +12,16 @@ import com.bilocan.sifreyoneticisi.databinding.ItemPasswordBinding
 import com.bilocan.sifreyoneticisi.model.Password
 
 class PasswordAdapter(
+    private val onItemClick: (Password) -> Unit,
     private val onCopyClick: (Password) -> Unit,
     private val onDeleteClick: (Password) -> Unit,
-    private val onEditClick: (Password) -> Unit,
-    val onMoveItem: suspend (Int, Int) -> Unit
+    private val onMoveItem: (Int, Int) -> Unit
 ) : ListAdapter<Password, PasswordAdapter.PasswordViewHolder>(PasswordDiffCallback()) {
 
     private var touchHelper: ItemTouchHelper? = null
 
     fun setTouchHelper(itemTouchHelper: ItemTouchHelper) {
         touchHelper = itemTouchHelper
-    }
-
-    inner class PasswordViewHolder(
-        private val binding: ItemPasswordBinding
-    ) : RecyclerView.ViewHolder(binding.root) {
-
-        fun bind(password: Password) {
-            binding.apply {
-                appNameText.text = password.appName
-                
-                // Kullanıcı adı boş ise ilgili view'ları gizle
-                if (password.username.isNullOrEmpty()) {
-                    usernameText.visibility = View.GONE
-                    separatorText.visibility = View.GONE
-                } else {
-                    usernameText.visibility = View.VISIBLE
-                    separatorText.visibility = View.VISIBLE
-                    usernameText.text = password.username
-                }
-                
-                passwordText.text = password.password
-
-                copyButton.setOnClickListener {
-                    onCopyClick(password)
-                }
-
-                deleteButton.setOnClickListener {
-                    onDeleteClick(password)
-                }
-
-                editButton.setOnClickListener {
-                    onEditClick(password)
-                }
-
-                dragHandle.setOnTouchListener { _, event ->
-                    if (event.actionMasked == MotionEvent.ACTION_DOWN) {
-                        touchHelper?.startDrag(this@PasswordViewHolder)
-                    }
-                    false
-                }
-            }
-        }
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PasswordViewHolder {
@@ -78,14 +36,65 @@ class PasswordAdapter(
     override fun onBindViewHolder(holder: PasswordViewHolder, position: Int) {
         holder.bind(getItem(position))
     }
-}
 
-private class PasswordDiffCallback : DiffUtil.ItemCallback<Password>() {
-    override fun areItemsTheSame(oldItem: Password, newItem: Password): Boolean {
-        return oldItem.id == newItem.id
+    inner class PasswordViewHolder(
+        private val binding: ItemPasswordBinding
+    ) : RecyclerView.ViewHolder(binding.root) {
+
+        init {
+            binding.editButton.setOnClickListener {
+                val position = adapterPosition
+                if (position != RecyclerView.NO_POSITION) {
+                    onItemClick(getItem(position))
+                }
+            }
+
+            binding.copyButton.setOnClickListener {
+                val position = adapterPosition
+                if (position != RecyclerView.NO_POSITION) {
+                    onCopyClick(getItem(position))
+                }
+            }
+
+            binding.deleteButton.setOnClickListener {
+                val position = adapterPosition
+                if (position != RecyclerView.NO_POSITION) {
+                    onDeleteClick(getItem(position))
+                }
+            }
+
+            binding.dragHandle.setOnTouchListener { _, event ->
+                if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+                    touchHelper?.startDrag(this@PasswordViewHolder)
+                }
+                false
+            }
+        }
+
+        fun bind(password: Password) {
+            binding.titleText.text = password.title
+            binding.usernameText.text = password.username
+            
+            // Kullanıcı adı boş ise ilgili view'ları gizle
+            if (password.username.isNullOrEmpty()) {
+                binding.usernameText.visibility = View.GONE
+                binding.separatorText.visibility = View.GONE
+            } else {
+                binding.usernameText.visibility = View.VISIBLE
+                binding.separatorText.visibility = View.VISIBLE
+            }
+            
+            binding.passwordText.text = password.password
+        }
     }
 
-    override fun areContentsTheSame(oldItem: Password, newItem: Password): Boolean {
-        return oldItem == newItem
+    private class PasswordDiffCallback : DiffUtil.ItemCallback<Password>() {
+        override fun areItemsTheSame(oldItem: Password, newItem: Password): Boolean {
+            return oldItem.id == newItem.id
+        }
+
+        override fun areContentsTheSame(oldItem: Password, newItem: Password): Boolean {
+            return oldItem == newItem
+        }
     }
 } 

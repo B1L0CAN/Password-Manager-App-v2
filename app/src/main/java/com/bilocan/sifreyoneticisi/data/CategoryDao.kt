@@ -6,11 +6,11 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface CategoryDao {
-    @Query("SELECT * FROM categories WHERE userId = :userId ORDER BY orderIndex ASC")
-    fun getCategoriesForUser(userId: Int): Flow<List<Category>>
+    @Query("SELECT * FROM categories ORDER BY orderIndex ASC")
+    fun getAllCategories(): Flow<List<Category>>
 
-    @Query("SELECT * FROM categories WHERE userId = :userId ORDER BY orderIndex ASC")
-    suspend fun getCategoriesForUserAsList(userId: Int): List<Category>
+    @Query("SELECT * FROM categories ORDER BY orderIndex ASC")
+    suspend fun getCategoriesAsList(): List<Category>
 
     @Query("SELECT * FROM categories WHERE id = :categoryId")
     suspend fun getCategoryById(categoryId: Int): Category?
@@ -27,12 +27,9 @@ interface CategoryDao {
     @Query("UPDATE categories SET orderIndex = :newIndex WHERE id = :categoryId")
     suspend fun updateCategoryOrder(categoryId: Int, newIndex: Int)
 
-    @Query("SELECT MAX(orderIndex) + 1 FROM categories WHERE userId = :userId")
-    suspend fun getNextOrderIndex(userId: Int): Int?
+    @Query("SELECT MAX(orderIndex) + 1 FROM categories")
+    suspend fun getNextOrderIndex(): Int?
 
-    @Query("SELECT * FROM categories")
-    suspend fun getAllCategories(): List<Category>
-
-    @Query("DELETE FROM categories WHERE userId = :userId")
-    suspend fun deleteAllCategoriesForUser(userId: Int)
+    @Query("DELETE FROM categories")
+    suspend fun deleteAllCategories()
 } 
