@@ -200,11 +200,13 @@ class CategoryDetailActivity : AppCompatActivity() {
         
         if (currentList == sortedList) {
             // Eğer liste zaten sıralıysa, ters çevir
+            binding.sortButton.setImageResource(R.drawable.ic_sort_alpha)
             passwordAdapter.submitList(currentList.sortedByDescending { it.title.uppercase() }) {
                 showMessage("Z'den A'ya sıralandı")
             }
         } else {
             // Normal sıralama yap
+            binding.sortButton.setImageResource(R.drawable.ic_sort_alpha_reverse)
             passwordAdapter.submitList(sortedList) {
                 showMessage("A'dan Z'ye sıralandı")
             }
